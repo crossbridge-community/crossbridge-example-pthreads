@@ -30,30 +30,74 @@
 
 SWFS=atomic.swf flash++flavors.swf flash++ui.swf openmp.swf pthreads.swf sema.swf workers.swf
 
-all: check $(SWFS)
+# Detect host 
+$?UNAME=$(shell uname -s)
+#$(info $(UNAME))
+ifneq (,$(findstring CYGWIN,$(UNAME)))
+	$?nativepath=$(shell cygpath -at mixed $(1))
+	$?unixpath=$(shell cygpath -at unix $(1))
+else
+	$?nativepath=$(abspath $(1))
+	$?unixpath=$(abspath $(1))
+endif
+
+# CrossBridge SDK Home
+ifneq "$(wildcard $(call unixpath,$(FLASCC_ROOT)/sdk))" ""
+ $?FLASCC:=$(call unixpath,$(FLASCC_ROOT)/sdk)
+else
+ $?FLASCC:=/path/to/crossbridge-sdk/
+endif
+$?ASC2=java -jar $(call nativepath,$(FLASCC)/usr/lib/asc2.jar) -merge -md -parallel
+ 
+# Auto Detect AIR/Flex SDKs
+ifneq "$(wildcard $(AIR_HOME)/lib/compiler.jar)" ""
+ $?FLEX=$(AIR_HOME)
+else
+ $?FLEX:=/path/to/adobe-air-sdk/
+endif
+
+# C/CPP Compiler
+$?BASE_CFLAGS=-Werror -Wno-write-strings -Wno-trigraphs
+$?EXTRACFLAGS=
+$?OPT_CFLAGS=-O4
+
+# ASC2 Compiler
+$?MXMLC_DEBUG=true
+$?SWF_VERSION=25
+$?SWF_SIZE=800x600
+
+all: clean check $(SWFS)
 
 atomic.swf: atomic.cpp
-	$(FLASCC)/usr/bin/g++ -emit-swf -swf-version=$(SWF_VERSION) -swf-size=$(SWF_SIZE) -O4 -flto-api=../exports.txt -pthread atomic.cpp -o atomic.swf
+	$(FLASCC)/usr/bin/g++ -emit-swf -swf-version=$(SWF_VERSION) -swf-size=$(SWF_SIZE) -O4 -flto-api=exports.txt -pthread atomic.cpp -o atomic.swf
 
 pthreads.swf: pthreads.cpp
-	$(FLASCC)/usr/bin/g++ -emit-swf -swf-version=$(SWF_VERSION) -swf-size=$(SWF_SIZE) -O4 -flto-api=../exports.txt -pthread pthreads.cpp -o pthreads.swf
+	$(FLASCC)/usr/bin/g++ -emit-swf -swf-version=$(SWF_VERSION) -swf-size=$(SWF_SIZE) -O4 -flto-api=exports.txt -pthread pthreads.cpp -o pthreads.swf
 
 sema.swf: sema.cpp
-	$(FLASCC)/usr/bin/g++ -emit-swf -swf-version=$(SWF_VERSION) -swf-size=$(SWF_SIZE) -O4 -flto-api=../exports.txt -pthread sema.cpp -o sema.swf
+	$(FLASCC)/usr/bin/g++ -emit-swf -swf-version=$(SWF_VERSION) -swf-size=$(SWF_SIZE) -O4 -flto-api=exports.txt -pthread sema.cpp -o sema.swf
 
 workers.swf: workers.cpp
-	$(FLASCC)/usr/bin/g++ -emit-swf -swf-version=$(SWF_VERSION) -swf-size=$(SWF_SIZE) -O4 -flto-api=../exports.txt -pthread workers.cpp -o workers.swf
+	$(FLASCC)/usr/bin/g++ -emit-swf -swf-version=$(SWF_VERSION) -swf-size=$(SWF_SIZE) -O4 -flto-api=exports.txt -pthread workers.cpp -o workers.swf
 
 openmp.swf: openmp.cpp
-	$(FLASCC)/usr/bin/g++ -emit-swf -swf-version=$(SWF_VERSION) -swf-size=$(SWF_SIZE) -O4 -flto-api=../exports.txt -pthread -fopenmp openmp.cpp -o openmp.swf
+	$(FLASCC)/usr/bin/g++ -emit-swf -swf-version=$(SWF_VERSION) -swf-size=$(SWF_SIZE) -O4 -flto-api=exports.txt -pthread -fopenmp openmp.cpp -o openmp.swf
 
 flash++flavors.swf: flash++flavors.cpp
-	$(FLASCC)/usr/bin/g++ -emit-swf -swf-version=$(SWF_VERSION) -swf-size=$(SWF_SIZE) -O4 -flto-api=../exports.txt -pthread flash++flavors.cpp -lFlash++ -lAS3++ -o flash++flavors.swf
+	$(FLASCC)/usr/bin/g++ -emit-swf -swf-version=$(SWF_VERSION) -swf-size=$(SWF_SIZE) -O4 -flto-api=exports.txt -pthread flash++flavors.cpp -lFlash++ -lAS3++ -o flash++flavors.swf
 
 flash++ui.swf: flash++ui.cpp
-	$(FLASCC)/usr/bin/g++ -emit-swf -swf-version=$(SWF_VERSION) -swf-size=$(SWF_SIZE) -O4 -flto-api=../exports.txt -pthread flash++ui.cpp -lFlash++ -lAS3++ -o flash++ui.swf
+	$(FLASCC)/usr/bin/g++ -emit-swf -swf-version=$(SWF_VERSION) -swf-size=$(SWF_SIZE) -O4 -flto-api=exports.txt -pthread flash++ui.cpp -lFlash++ -lAS3++ -o flash++ui.swf
 
-include Makefile.common
+# Self check
+check:
+	@if [ -d $(FLASCC)/usr/bin ] ; then true ; \
+	else echo "Couldn't locate CrossBridge SDK directory, please invoke make with \"make FLASCC=/path/to/CrossBridge/ ...\"" ; exit 1 ; \
+	fi
+	@if [ -d "$(FLEX)/bin" ] ; then true ; \
+	else echo "Couldn't locate Adobe AIR or Apache Flex SDK directory, please invoke make with \"make FLEX=/path/to/AirOrFlex  ...\"" ; exit 1 ; \
+	fi
+	@echo "ASC2: $(ASC2)"
 
 clean:
 	rm -f *.swf *.swc
